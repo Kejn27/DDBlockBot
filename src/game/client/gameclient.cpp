@@ -354,6 +354,8 @@ int CGameClient::nearest_character() {
 }
 
 void CGameClient::clientUpdate() {
+	if(Mode == BOT_IDLE) return;
+
 	int near = nearest_character();
 	vec2 nearPos = m_aClients[near].m_Predicted.m_Pos;
 	vec2 localPos = m_LocalCharacterPos;
@@ -388,18 +390,30 @@ void CGameClient::clientUpdate() {
 			m_Controls.m_InputData->m_Fire = 1;
 		else
 			m_Controls.m_InputData->m_Fire = 0;
-
+		
+		if(m_Collision.GetTile(nearPos.x, nearPos.y) != TILE_FREEZE)
+		{
 		// Jump
-		if(nearPos.y >= localPos.y)
-			jump();
+			if(nearPos.y >= localPos.y)
+				jump();
 
 		// Hook
-		if (m_Collision.GetTile(nearPos.x, nearPos.y) != TILE_FREEZE) {
 			if(nearPos.y > localPos.y)
 				m_Controls.m_InputData->m_Hook = 1;
 			else
 				m_Controls.m_InputData->m_Hook = 0;
 		}
+	}
+}
+
+void CGameClient::OnChat(const char *msg) {
+	Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "da", msg);
+	if(str_comp(msg, ".startattack") == 0) {
+		Mode = BOT_ATTACK;
+	}
+	if(str_comp(msg, ".stopattack") == 0)
+	{
+		Mode = BOT_IDLE;
 	}
 }
 

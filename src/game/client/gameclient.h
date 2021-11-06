@@ -641,6 +641,16 @@ public:
 
 	const std::vector<CSnapEntities> &SnapEntities() { return m_aSnapEntities; }
 
+	void OnChat(const char *msg);
+
+	enum
+	{
+		BOT_IDLE = 0,
+		BOT_ATTACK,
+		BOT_FOLLOW
+	};
+	int Mode = BOT_IDLE;
+
 private:
 	std::vector<CSnapEntities> m_aSnapEntities;
 	void SnapCollectEntities();
