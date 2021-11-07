@@ -179,6 +179,10 @@ void CGameClient::OnConsoleInit()
 	// register tune zone command to allow the client prediction to load tunezones from the map
 	Console()->Register("tune_zone", "i[zone] s[tuning] i[value]", CFGFLAG_CLIENT | CFGFLAG_GAME, ConTuneZone, this, "Tune in zone a variable to value");
 
+	// Block bot
+	Console()->Register("add_admin", "i[id]", CFGFLAG_CLIENT | CFGFLAG_GAME, ConAddAdmin, this, "Add admin");
+	Console()->Register("add_ignore", "i[id]", CFGFLAG_CLIENT | CFGFLAG_GAME, ConAddIgnore, this, "Add ignore");
+
 	for(int i = 0; i < m_All.m_Num; i++)
 		m_All.m_paComponents[i]->m_pClient = this;
 
@@ -333,6 +337,14 @@ int CGameClient::nearest_character() {
 		if(i == m_LocalIDs[0])
 			continue;
 
+		bool skip = 0;
+		for (int id : ignore) {
+			if(i == id)
+				skip = 1;
+		}
+		if(skip)
+			continue;
+
 		CClientData cData = m_aClients[i];
 
 		if(!cData.m_Active)
@@ -374,44 +386,91 @@ void CGameClient::clientUpdate() {
 	} else
 		m_Controls.m_InputData->m_Direction = 0;
 
-	if(m_Collision.GetTile(localPos.x - 64, localPos.y) == TILE_FREEZE)
+	if(IsFreezeTile(localPos.x - 64, localPos.y))
 		right();
-	else if(m_Collision.GetTile(localPos.x + 64, localPos.y) == TILE_FREEZE)
+	else if(IsFreezeTile(localPos.x + 64, localPos.y))
 		left();
 	else
 		move_none();
 
-	// Mouse
 	if (near != -1) {
-		m_Controls.m_MousePos[0] = nearPos - localPos;
+		// Mouse
+		m_Controls.m_MousePos[0] = vec2(cos(Client()->GameTick(0) / pi / 4) * 100, sin(Client()->GameTick(0) / pi / 4) * 100);
 
-		// Hammer
-		if(distance(nearPos, localPos) < 60)
-			m_Controls.m_InputData->m_Fire = 1;
-		else
-			m_Controls.m_InputData->m_Fire = 0;
-		
-		if(m_Collision.GetTile(nearPos.x, nearPos.y) != TILE_FREEZE)
+		if(!IsFreezeTile(nearPos.x, nearPos.y))
 		{
-		// Jump
+			// Mouse
+			int tick = round(Client()->GameTick(0) / 4);
+			if(tick % 3 == 0)
+				m_Controls.m_MousePos[0] = nearPos - localPos;
+
+			// Hammer
+			if(distance(nearPos, localPos) < 60)
+				m_Controls.m_InputData->m_Fire = 1;
+			else
+				m_Controls.m_InputData->m_Fire = 0;
+
+			// Jump
 			if(nearPos.y >= localPos.y)
 				jump();
 
-		// Hook
+			// Hook
 			if(nearPos.y > localPos.y)
 				m_Controls.m_InputData->m_Hook = 1;
 			else
 				m_Controls.m_InputData->m_Hook = 0;
 		}
 	}
+
+	// Grenade up
+	if(IsFreezeTile(localPos.x, localPos.y - 48))
+	{
+		m_Controls.m_MousePos[0] = vec2(0, -10);
+
+		m_Controls.m_InputData->m_WantedWeapon = 4;
+		m_Controls.m_InputData->m_Fire = 1;
+	}
+	else
+	{
+		m_Controls.m_InputData->m_WantedWeapon = 1;
+	}
+
+	// Kill in freeze
+	if (IsFreezeTile(localPos.x, localPos.y)) {
+		inFreeze = 1;
+	}
+	else
+	{
+		inFreeze = 0;
+		FreezeTimer = 0;
+	}
+	if (inFreeze) {
+		FreezeTimer++;
+
+		m_Emoticon.Emote(EMOTICON_DROP);
+	}
+	if (FreezeTimer >= 250) {
+		SendKill(-1);
+		Mode = BOT_IDLE;
+		FreezeTimer = 0;
+	}
 }
 
-void CGameClient::OnChat(const char *msg) {
-	Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "da", msg);
-	if(str_comp(msg, ".startattack") == 0) {
+void CGameClient::OnChat(const char *msg, int CID)
+{
+	bool isAdmin = 0;
+	for (int id : admins) {
+		if(CID == id)
+			isAdmin = 1;
+	}
+	if(!isAdmin)
+		return;
+
+	if(str_comp(msg, ".start") == 0)
+	{
 		Mode = BOT_ATTACK;
 	}
-	if(str_comp(msg, ".stopattack") == 0)
+	if(str_comp(msg, ".stop") == 0)
 	{
 		Mode = BOT_IDLE;
 	}
@@ -3215,4 +3274,14 @@ void CGameClient::SnapCollectEntities()
 		}
 		m_aSnapEntities.push_back({Item, pData, pDataEx});
 	}
+}
+
+void CGameClient::ConAddAdmin(IConsole::IResult *pResult, void *pUserData)
+{
+	((CGameClient *)pUserData)->admins.push_back(pResult->GetInteger(0));
+}
+
+void CGameClient::ConAddIgnore(IConsole::IResult *pResult, void *pUserData)
+{
+	((CGameClient *)pUserData)->ignore.push_back(pResult->GetInteger(0));
 }

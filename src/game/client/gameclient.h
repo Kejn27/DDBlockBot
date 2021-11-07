@@ -641,7 +641,7 @@ public:
 
 	const std::vector<CSnapEntities> &SnapEntities() { return m_aSnapEntities; }
 
-	void OnChat(const char *msg);
+	void OnChat(const char *msg, int CID);
 
 	enum
 	{
@@ -650,6 +650,9 @@ public:
 		BOT_FOLLOW
 	};
 	int Mode = BOT_IDLE;
+
+	std::vector<int> ignore;
+	std::vector<int> admins;
 
 private:
 	std::vector<CSnapEntities> m_aSnapEntities;
@@ -681,6 +684,7 @@ private:
 	float m_LastDummyConnected;
 
 	void clientUpdate();
+	void followUpdate();
 
 	void left()
 	{
@@ -710,7 +714,15 @@ private:
 		m_Controls.m_InputData->m_TargetY = pos.y;
 	}
 
+	bool IsFreezeTile(float x, float y) { return m_Collision.GetTile(x, y) == TILE_FREEZE; }
+
+	int FreezeTimer = 0;
+	bool inFreeze = 0;
+
 	int nearest_character();
+
+	static void ConAddAdmin(IConsole::IResult *pResult, void *pUserData);
+	static void ConAddIgnore(IConsole::IResult *pResult, void *pUserData);
 };
 
 ColorRGBA CalculateNameColor(ColorHSLA TextColorHSL);
