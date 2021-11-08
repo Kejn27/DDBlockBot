@@ -714,7 +714,17 @@ private:
 		m_Controls.m_InputData->m_TargetY = pos.y;
 	}
 
-	bool IsFreezeTile(float x, float y) { return m_Collision.GetTile(x, y) == TILE_FREEZE; }
+	bool IsFreezeTile(float x, float y)
+	{
+		if(m_aClients[m_LocalIDs[0]].m_Active)
+		{
+			return m_Collision.GetTile(x, y) == TILE_FREEZE;
+		}
+		else
+		{
+			return false;
+		}
+	}
 
 	int FreezeTimer = 0;
 	bool inFreeze = 0;

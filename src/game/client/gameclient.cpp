@@ -400,9 +400,9 @@ void CGameClient::clientUpdate() {
 		if(!IsFreezeTile(nearPos.x, nearPos.y))
 		{
 			// Mouse
-			int tick = round(Client()->GameTick(0) / 4);
-			if(tick % 3 == 0)
-				m_Controls.m_MousePos[0] = nearPos - localPos;
+			//int tick = round(Client()->GameTick(0) / 4);
+			//if(tick % 3 == 0)
+			m_Controls.m_MousePos[0] = nearPos - localPos;
 
 			// Hammer
 			if(distance(nearPos, localPos) < 60)
@@ -435,7 +435,7 @@ void CGameClient::clientUpdate() {
 		m_Controls.m_InputData->m_WantedWeapon = 1;
 	}
 
-	// Kill in freeze
+	// Say "/w %ADMINS_NAME% Help me" in freeze
 	if (IsFreezeTile(localPos.x, localPos.y)) {
 		inFreeze = 1;
 	}
@@ -447,13 +447,20 @@ void CGameClient::clientUpdate() {
 	if (inFreeze) {
 		FreezeTimer++;
 
-		m_Emoticon.Emote(EMOTICON_DROP);
+		if(Client()->GameTick(0) % 50 == 0)
+			m_Emoticon.Emote(EMOTICON_DROP);
 	}
 	if (FreezeTimer >= 250) {
-		SendKill(-1);
-		Mode = BOT_IDLE;
-		FreezeTimer = 0;
+		if (Client()->GameTick(0) % 200 == 0) {
+			for (int id : admins) {
+				char aBuf[256];
+				str_format(aBuf, 256, "/w %s Help me!", m_aClients[id].m_aName);
+				m_Chat.SayChat(aBuf);
+			}
+		}			
 	}
+
+	// Path to 
 }
 
 void CGameClient::OnChat(const char *msg, int CID)
@@ -466,6 +473,27 @@ void CGameClient::OnChat(const char *msg, int CID)
 	if(!isAdmin)
 		return;
 
+	std::vector<char *> args;
+	char str[256];
+
+	for (int i = 0; i < str_length(msg); i++) {
+		char c = msg[i];
+
+		if (c != ' ') {
+			str_append(str, &c, 256);
+		}
+		else {
+			args.push_back(str);
+			str_format(str, 256, "");
+		}
+	}
+
+	for (char* arg : args) {
+		char aBuf[256];
+		str_format(aBuf, 256, "%s", arg);
+		Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "da", aBuf);
+	}
+
 	if(str_comp(msg, ".start") == 0)
 	{
 		Mode = BOT_ATTACK;
@@ -473,6 +501,7 @@ void CGameClient::OnChat(const char *msg, int CID)
 	if(str_comp(msg, ".stop") == 0)
 	{
 		Mode = BOT_IDLE;
+		m_Controls.ResetInput(0);
 	}
 }
 
