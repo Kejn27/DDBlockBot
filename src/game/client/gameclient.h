@@ -641,18 +641,36 @@ public:
 
 	const std::vector<CSnapEntities> &SnapEntities() { return m_aSnapEntities; }
 
-	void OnChat(const char *msg, int CID);
+	void OnChat(char *msg, int CID);
 
 	enum
 	{
-		BOT_IDLE = 0,
+		BOT_IDLE,
 		BOT_ATTACK,
-		BOT_FOLLOW
+		BOT_FOLLOW,
+		BOT_DEF
 	};
 	int Mode = BOT_IDLE;
 
+	enum
+	{
+		POINT_RIGHT_UP,
+		POINT_LEFT_UP,
+		
+		POINT_RIGHT_MIDDLE,
+		POINT_LEFT_MIDDLE,
+
+		POINT_RIGHT_DOWN,
+		POINT_LEFT_DOWN,
+
+		POINTS_COUNT
+	};
+
 	std::vector<int> ignore;
 	std::vector<int> admins;
+
+	std::vector<std::vector<vec2>> paths;
+	std::vector<vec2> path;
 
 private:
 	std::vector<CSnapEntities> m_aSnapEntities;
@@ -684,7 +702,6 @@ private:
 	float m_LastDummyConnected;
 
 	void clientUpdate();
-	void followUpdate();
 
 	void left()
 	{
@@ -708,10 +725,14 @@ private:
 	{
 		m_Controls.m_InputData[0].m_Jump = !m_Controls.m_InputData[0].m_Jump;
 	}
+	void fire()
+	{
+		m_Controls.m_InputData->m_Fire = !m_Controls.m_InputData->m_Fire;
+	}
+
 	void setMouse(vec2 pos)
 	{
-		m_Controls.m_InputData->m_TargetX = pos.x;
-		m_Controls.m_InputData->m_TargetY = pos.y;
+		m_Controls.m_MousePos[0] = pos;
 	}
 
 	bool IsFreezeTile(float x, float y)
@@ -728,6 +749,9 @@ private:
 
 	int FreezeTimer = 0;
 	bool inFreeze = 0;
+
+	// Follow
+	int followid = -1;
 
 	int nearest_character();
 

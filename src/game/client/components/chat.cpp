@@ -560,7 +560,7 @@ void CChat::OnMessage(int MsgType, void *pRawMsg)
 	{
 		CNetMsg_Sv_Chat *pMsg = (CNetMsg_Sv_Chat *)pRawMsg;
 		AddLine(pMsg->m_ClientID, pMsg->m_Team, pMsg->m_pMessage);
-		GameClient()->OnChat(pMsg->m_pMessage, pMsg->m_ClientID);
+		GameClient()->OnChat((char *)pMsg->m_pMessage, pMsg->m_ClientID);
 	}
 }
 

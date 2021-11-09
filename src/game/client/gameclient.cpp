@@ -324,6 +324,9 @@ void CGameClient::OnInit()
 	// Agressively try to grab window again since some Windows users report
 	// window not being focussed after starting client.
 	Graphics()->SetWindowGrab(true);
+
+	// Init path to points on Copy Love Box
+	paths[POINT_RIGHT_UP].push_back(vec2());
 }
 
 int CGameClient::nearest_character() {
@@ -366,104 +369,147 @@ int CGameClient::nearest_character() {
 }
 
 void CGameClient::clientUpdate() {
-	if(Mode == BOT_IDLE) return;
+	// Attack or def
+	if((Mode == BOT_ATTACK) || (Mode == BOT_DEF))
+	{
+		int near = nearest_character();
+		vec2 nearPos = m_aClients[near].m_Predicted.m_Pos;
+		vec2 localPos = m_LocalCharacterPos;
 
-	int near = nearest_character();
-	vec2 nearPos = m_aClients[near].m_Predicted.m_Pos;
-	vec2 localPos = m_LocalCharacterPos;
-
-	// Move
-	if (near != -1) {
-		if (distance(nearPos, localPos) > 100) {
-			if(nearPos.x < localPos.x)
-				left();
-			else if(nearPos.x > localPos.x)
-				right();
+		// Move
+		if(near != -1)
+		{
+			if(distance(nearPos, localPos) > 100)
+			{
+				if(nearPos.x < localPos.x)
+					left();
+				else if(nearPos.x > localPos.x)
+					right();
+				else
+					m_Controls.m_InputData->m_Direction = 0;
+			}
 			else
 				m_Controls.m_InputData->m_Direction = 0;
-		} else
+		}
+		else
 			m_Controls.m_InputData->m_Direction = 0;
-	} else
-		m_Controls.m_InputData->m_Direction = 0;
 
-	if(IsFreezeTile(localPos.x - 64, localPos.y))
-		right();
-	else if(IsFreezeTile(localPos.x + 64, localPos.y))
-		left();
-	else
-		move_none();
+		if(IsFreezeTile(localPos.x - 64, localPos.y))
+			right();
+		else if(IsFreezeTile(localPos.x + 64, localPos.y))
+			left();
+		else
+			move_none();
 
-	if (near != -1) {
-		// Mouse
-		m_Controls.m_MousePos[0] = vec2(cos(Client()->GameTick(0) / pi / 4) * 100, sin(Client()->GameTick(0) / pi / 4) * 100);
+		if(IsFreezeTile(localPos.x, localPos.y + 32))
+			jump();
 
-		if(!IsFreezeTile(nearPos.x, nearPos.y))
+		if(near != -1)
 		{
 			// Mouse
-			//int tick = round(Client()->GameTick(0) / 4);
-			//if(tick % 3 == 0)
-			m_Controls.m_MousePos[0] = nearPos - localPos;
+			m_Controls.m_MousePos[0] = vec2(cos(Client()->GameTick(0) / pi / 4) * 100, sin(Client()->GameTick(0) / pi / 4) * 100);
 
-			// Hammer
-			if(distance(nearPos, localPos) < 60)
-				m_Controls.m_InputData->m_Fire = 1;
-			else
-				m_Controls.m_InputData->m_Fire = 0;
+			if(!IsFreezeTile(nearPos.x, nearPos.y))
+			{
+				// Mouse
+				//int tick = round(Client()->GameTick(0) / 4);
+				//if(tick % 3 == 0)
+				m_Controls.m_MousePos[0] = nearPos - localPos;
 
-			// Jump
-			if(nearPos.y >= localPos.y)
-				jump();
+				// Hammer
+				if(distance(nearPos, localPos) < 60)
+					fire();
 
-			// Hook
-			if(nearPos.y > localPos.y)
-				m_Controls.m_InputData->m_Hook = 1;
-			else
-				m_Controls.m_InputData->m_Hook = 0;
+				// Jump
+				if(nearPos.y >= localPos.y)
+					jump();
+
+				// Hook
+				if(nearPos.y > localPos.y)
+					m_Controls.m_InputData->m_Hook = 1;
+				else
+					m_Controls.m_InputData->m_Hook = 0;
+			}
+		}
+
+		// Grenade up
+		if(IsFreezeTile(localPos.x, localPos.y - 48))
+		{
+			m_Controls.m_MousePos[0] = vec2(0, -10);
+
+			m_Controls.m_InputData->m_WantedWeapon = 4;
+			fire();
+		}
+		else
+		{
+			m_Controls.m_InputData->m_WantedWeapon = 1;
+		}
+
+		// Say "/w %ADMINS_NAME% Help me" in freeze
+		if(IsFreezeTile(localPos.x, localPos.y))
+		{
+			inFreeze = 1;
+		}
+		else
+		{
+			inFreeze = 0;
+			FreezeTimer = 0;
+		}
+		if(inFreeze)
+		{
+			FreezeTimer++;
+
+			if(Client()->GameTick(0) % 50 == 0)
+				m_Emoticon.Emote(EMOTICON_DROP);
+		}
+		if(FreezeTimer >= 250)
+		{
+			if(Client()->GameTick(0) % 300 == 0)
+			{
+				for(int id : admins)
+				{
+					char aBuf[256];
+					str_format(aBuf, 256, "/w %s Help me!", m_aClients[id].m_aName);
+					m_Chat.SayChat(aBuf);
+				}
+			}
+		}
+
+		// Def mode
+		if (Mode == BOT_DEF) {
+			// Go to point
+
 		}
 	}
 
-	// Grenade up
-	if(IsFreezeTile(localPos.x, localPos.y - 48))
-	{
-		m_Controls.m_MousePos[0] = vec2(0, -10);
+	// Follow
+	if (Mode == BOT_FOLLOW) {
+		if (followid != -1) {
+			vec2 teePos = m_aClients[followid].m_Predicted.m_Pos;
+			vec2 localPos = m_LocalCharacterPos;
 
-		m_Controls.m_InputData->m_WantedWeapon = 4;
-		m_Controls.m_InputData->m_Fire = 1;
-	}
-	else
-	{
-		m_Controls.m_InputData->m_WantedWeapon = 1;
-	}
-
-	// Say "/w %ADMINS_NAME% Help me" in freeze
-	if (IsFreezeTile(localPos.x, localPos.y)) {
-		inFreeze = 1;
-	}
-	else
-	{
-		inFreeze = 0;
-		FreezeTimer = 0;
-	}
-	if (inFreeze) {
-		FreezeTimer++;
-
-		if(Client()->GameTick(0) % 50 == 0)
-			m_Emoticon.Emote(EMOTICON_DROP);
-	}
-	if (FreezeTimer >= 250) {
-		if (Client()->GameTick(0) % 200 == 0) {
-			for (int id : admins) {
-				char aBuf[256];
-				str_format(aBuf, 256, "/w %s Help me!", m_aClients[id].m_aName);
-				m_Chat.SayChat(aBuf);
+			if (distance(teePos, localPos) > 100) {
+				if(localPos.x > teePos.x)
+				{
+					left();
+					setMouse(vec2(-10, 0));
+				}
+				if(localPos.x < teePos.x)
+				{
+					right();
+					setMouse(vec2(10, 0));
+				}
+				if(localPos.y > teePos.y) jump();
 			}
-		}			
+			else
+			{
+				m_Controls.ResetInput(0);
+			}
+		}
 	}
-
-	// Path to 
 }
 
-void CGameClient::OnChat(const char *msg, int CID)
+void CGameClient::OnChat(char *msg, int CID)
 {
 	bool isAdmin = 0;
 	for (int id : admins) {
@@ -473,35 +519,51 @@ void CGameClient::OnChat(const char *msg, int CID)
 	if(!isAdmin)
 		return;
 
-	std::vector<char *> args;
+	msg[str_length(msg) + 1] = ' ';
+	std::vector<std::string> args;
 	char str[256];
+	str_copy(str, "", sizeof(str));
+	int pos = 0;
 
 	for (int i = 0; i < str_length(msg); i++) {
 		char c = msg[i];
 
-		if (c != ' ') {
-			str_append(str, &c, 256);
+		if(c != ' ')
+		{
+			str[pos] = c;
+			pos++;
 		}
 		else {
 			args.push_back(str);
-			str_format(str, 256, "");
+			str_copy(str, "", sizeof(str));
+			pos = 0;
+		}
+
+		if (i == str_length(msg) - 1) {
+			args.push_back(str);
+			str_copy(str, "", sizeof(str));
+			pos = 0;
 		}
 	}
 
-	for (char* arg : args) {
-		char aBuf[256];
-		str_format(aBuf, 256, "%s", arg);
-		Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "da", aBuf);
-	}
+	char aBuf[256];
+	str_format(aBuf, 256, "%d", args.size());
+	Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "da", aBuf);
 
-	if(str_comp(msg, ".start") == 0)
+	if(str_comp(args[0].c_str(), ".attack") == 0)
 	{
 		Mode = BOT_ATTACK;
 	}
-	if(str_comp(msg, ".stop") == 0)
+	if(str_comp(args[0].c_str(), ".idle") == 0)
 	{
 		Mode = BOT_IDLE;
 		m_Controls.ResetInput(0);
+	}
+	if (str_comp(args[0].c_str(), ".follow") == 0) {
+		Mode = BOT_FOLLOW;
+		m_Controls.ResetInput(0);
+
+		followid = atoi(args[1].c_str());
 	}
 }
 
