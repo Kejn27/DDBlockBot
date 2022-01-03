@@ -326,7 +326,20 @@ void CGameClient::OnInit()
 	Graphics()->SetWindowGrab(true);
 
 	// Init path to points on Copy Love Box
-	paths[POINT_RIGHT_UP].push_back(vec2());
+	std::vector<vec2> buf;
+
+	// Right up
+	buf.push_back(vec2(117.50, 49.50));
+	buf.push_back(vec2(135.50, 50.50));
+	buf.push_back(vec2(145.25, 79.50));
+	paths[POINT_RIGHT_UP] = buf;
+
+	// Left up
+	buf.clear();
+	buf.push_back(vec2(117.50, 49.50));
+	buf.push_back(vec2(98.50, 50.50));
+	buf.push_back(vec2(88.50, 79.50));
+	paths[POINT_LEFT_UP] = buf;
 }
 
 int CGameClient::nearest_character() {
@@ -369,31 +382,14 @@ int CGameClient::nearest_character() {
 }
 
 void CGameClient::clientUpdate() {
+	vec2 localPos = m_LocalCharacterPos;
+
 	// Attack or def
-	if((Mode == BOT_ATTACK) || (Mode == BOT_DEF))
-	{
+	if((Mode == BOT_ATTACK) || (Mode == BOT_DEFATTACK)) {
 		int near = nearest_character();
 		vec2 nearPos = m_aClients[near].m_Predicted.m_Pos;
-		vec2 localPos = m_LocalCharacterPos;
 
-		// Move
-		if(near != -1)
-		{
-			if(distance(nearPos, localPos) > 100)
-			{
-				if(nearPos.x < localPos.x)
-					left();
-				else if(nearPos.x > localPos.x)
-					right();
-				else
-					m_Controls.m_InputData->m_Direction = 0;
-			}
-			else
-				m_Controls.m_InputData->m_Direction = 0;
-		}
-		else
-			m_Controls.m_InputData->m_Direction = 0;
-
+		// Move around freeze
 		if(IsFreezeTile(localPos.x - 64, localPos.y))
 			right();
 		else if(IsFreezeTile(localPos.x + 64, localPos.y))
@@ -404,39 +400,79 @@ void CGameClient::clientUpdate() {
 		if(IsFreezeTile(localPos.x, localPos.y + 32))
 			jump();
 
+		if(Mode == BOT_DEFATTACK)
+			if(round(localPos.y / 32) < 60)
+				near = -1;
+
 		if(near != -1)
 		{
-			// Mouse
-			m_Controls.m_MousePos[0] = vec2(cos(Client()->GameTick(0) / pi / 4) * 100, sin(Client()->GameTick(0) / pi / 4) * 100);
-
-			if(!IsFreezeTile(nearPos.x, nearPos.y))
+			vec2 point;
+			if(IntersectCharacter(nearPos, localPos, point, m_LocalIDs[0]) != -1)
 			{
-				// Mouse
-				//int tick = round(Client()->GameTick(0) / 4);
-				//if(tick % 3 == 0)
-				m_Controls.m_MousePos[0] = nearPos - localPos;
+				if(!IsFreezeTile(nearPos.x, nearPos.y))
+				{
+					// Move
+					if(IsFreezeTile(localPos.x - 64, localPos.y))
+						right();
+					else if(IsFreezeTile(localPos.x + 64, localPos.y))
+						left();
+					else if(distance(nearPos, localPos) > 100) {
+						if(nearPos.x < localPos.x)
+							left();
+						else if(nearPos.x > localPos.x)
+							right();
+						else
+							m_Controls.m_InputData->m_Direction = 0;
+					}
+					else
+						move_none();
 
-				// Hammer
-				if(distance(nearPos, localPos) < 60)
-					fire();
+					// Mouse
+					vec2 &a = vec2(0, 0);
+					if(IntersectCharacter(localPos, nearPos, a, m_LocalIDs[0]) == near)
+					{
+						m_Controls.m_MousePos[0].x = lerp(m_Controls.m_MousePos[0].x, nearPos.x - localPos.x, 0.3);
+						m_Controls.m_MousePos[0].y = lerp(m_Controls.m_MousePos[0].y, nearPos.y - localPos.y, 0.3);
+					}
 
-				// Jump
-				if(nearPos.y >= localPos.y)
-					jump();
+					// Hammer
+					if(distance(nearPos, localPos) < 60)
+						fire();
 
-				// Hook
-				if(nearPos.y > localPos.y)
-					m_Controls.m_InputData->m_Hook = 1;
-				else
-					m_Controls.m_InputData->m_Hook = 0;
+					// Jump
+					if(!IsFreezeTile(localPos.x, localPos.y + 64))
+						if(nearPos.y >= localPos.y)
+							if(!IsFreezeTile(localPos.x, localPos.y - 32))
+								if(!IsFreezeTile(localPos.x, localPos.y - 64))
+									if(!IsFreezeTile(localPos.x, localPos.y - 96))
+										jump();
+
+					// Hook
+					if(nearPos.y > localPos.y)
+						m_Controls.m_InputData->m_Hook = 1;
+					else
+						m_Controls.m_InputData->m_Hook = 0;
+				}
 			}
 		}
 
 		// Grenade up
-		if(IsFreezeTile(localPos.x, localPos.y - 48))
+		if(IsFreezeTile(localPos.x, localPos.y - 48) && m_GameWorld.GetCharacterByID(m_LocalIDs[0])->GetWeaponGot(WEAPON_GRENADE))
 		{
 			m_Controls.m_MousePos[0] = vec2(0, -10);
 
+			m_Controls.m_InputData->m_WantedWeapon = 4;
+			fire();
+		}
+		// Shotgun if disnance >150
+		else if((((distance(nearPos, localPos) > 150) && (nearPos.y - localPos.y > 64)) && (near != -1)) && m_GameWorld.GetCharacterByID(m_LocalIDs[0])->GetWeaponGot(WEAPON_SHOTGUN))
+		{
+			m_Controls.m_InputData->m_WantedWeapon = 3;
+			fire();
+		}
+		// Grenade if distance >150
+		else if((((distance(nearPos, localPos) > 150) && (nearPos.y - localPos.y < 64)) && (near != -1)) && m_GameWorld.GetCharacterByID(m_LocalIDs[0])->GetWeaponGot(WEAPON_GRENADE))
+		{
 			m_Controls.m_InputData->m_WantedWeapon = 4;
 			fire();
 		}
@@ -444,41 +480,162 @@ void CGameClient::clientUpdate() {
 		{
 			m_Controls.m_InputData->m_WantedWeapon = 1;
 		}
+	}
 
-		// Say "/w %ADMINS_NAME% Help me" in freeze
-		if(IsFreezeTile(localPos.x, localPos.y))
-		{
-			inFreeze = 1;
-		}
-		else
-		{
-			inFreeze = 0;
-			FreezeTimer = 0;
-		}
-		if(inFreeze)
-		{
-			FreezeTimer++;
-
-			if(Client()->GameTick(0) % 50 == 0)
-				m_Emoticon.Emote(EMOTICON_DROP);
-		}
-		if(FreezeTimer >= 250)
-		{
-			if(Client()->GameTick(0) % 300 == 0)
+	// Def mode
+	if((Mode == BOT_DEF) || (Mode == BOT_DEFATTACK))
+	{
+		/*if(round(localPos.y / 32) >= 50)
 			{
-				for(int id : admins)
+				if ((round(localPos.x / 32) >= 95) && (round(localPos.x / 32) <= 139)) {
+					path.clear();
+					SendKill(-1);
+					m_Controls.ResetInput(0);
+				}
+			}*/
+
+		if(IsFreezeTile(localPos.x, localPos.y + 32))
+			jump();
+
+		if(DefPoint == POINT_RIGHT_UP)
+		{
+			if((path.empty()) && (round(localPos.y / 32) < 60))
+			{
+				path = paths[POINT_RIGHT_UP];
+			}
+
+			vec2 point;
+			if(!path.empty())
+				point = path[0];
+
+			if((distance(localPos, point * 32) <= 16) && (round(localPos.y / 32) < 60))
+				path.erase(path.begin());
+
+			//char aBuf[256];
+			//str_format(aBuf, 256, "%d %d, %d %d", round(localPos.x), round(localPos.y), round(point.x), round(point.y));
+			//Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "da", aBuf);
+
+			if(round(localPos.y / 32) < 60)
+			{
+				if(point.x * 32 < localPos.x)
+					left();
+				else if(point.x * 32 > localPos.x)
+					right();
+
+				Mode = BOT_DEF;
+			}
+			else {
+				Mode = BOT_DEFATTACK;
+			}
+
+			///////////////////////////////////////////////
+			if(round(localPos.y / 32) > 66)
+			{
+				vec2 pos = vec2(round(localPos.x / 32), round(localPos.y / 32));
+
+				if(pos.x < 142)
 				{
-					char aBuf[256];
-					str_format(aBuf, 256, "/w %s Help me!", m_aClients[id].m_aName);
-					m_Chat.SayChat(aBuf);
+					right();
+				}
+
+				if(pos.y > 80)
+				{
+					jump();
+				}
+
+				///////////////
+				if(pos.x > 155)
+				{
+					path.clear();
+					SendKill(-1);
+					m_Controls.ResetInput(0);
+				}
+				if(pos.x < 130)
+				{
+					path.clear();
+					SendKill(-1);
+					m_Controls.ResetInput(0);
+				}
+				if(pos.y > 85)
+				{
+					path.clear();
+					SendKill(-1);
+					m_Controls.ResetInput(0);
+				}
+
+				if((pos.x > 142) && (pos.y > 80))
+				{
+					path.clear();
+					SendKill(-1);
+					m_Controls.ResetInput(0);
 				}
 			}
 		}
 
-		// Def mode
-		if (Mode == BOT_DEF) {
-			// Go to point
+		if(DefPoint == POINT_LEFT_UP)
+		{
+			if((path.empty()) && (round(localPos.y / 32) < 60))
+			{
+				path = paths[POINT_LEFT_UP];
+			}
 
+			vec2 point;
+			if(!path.empty())
+				point = path[0];
+
+			if((distance(localPos, point * 32) <= 16) && (round(localPos.y / 32) < 60))
+				path.erase(path.begin());
+
+			if(round(localPos.y / 32) < 60)
+			{
+				if(point.x * 32 < localPos.x)
+					left();
+				else if(point.x * 32 > localPos.x)
+					right();
+			}
+
+			///////////////////////////////////////////////
+			if(round(localPos.y / 32) > 66)
+			{
+				vec2 pos = vec2(round(localPos.x / 32), round(localPos.y / 32));
+
+				if(pos.x > 92)
+				{
+					left();
+				}
+
+				if(pos.y > 80)
+				{
+					jump();
+				}
+
+				///////////////////////////////////////////
+				if(pos.x < 80)
+				{
+					path.clear();
+					SendKill(-1);
+					m_Controls.ResetInput(0);
+				}
+				if(pos.x > 104)
+				{
+					path.clear();
+					SendKill(-1);
+					m_Controls.ResetInput(0);
+				}
+				if(pos.y > 85)
+				{
+					path.clear();
+					SendKill(-1);
+					m_Controls.ResetInput(0);
+				}
+
+				if((pos.x < 92) && (pos.y > 80))
+				{
+					path.clear();
+					SendKill(-1);
+					m_Controls.ResetInput(0);
+				}
+			}
 		}
 	}
 
@@ -507,10 +664,34 @@ void CGameClient::clientUpdate() {
 			}
 		}
 	}
+
+	// Sit
+	if (Mode == BOT_SIT) {
+		if (followid != -1) {
+			vec2 teePos = m_aClients[followid].m_Predicted.m_Pos;
+			vec2 localPos = m_LocalCharacterPos;
+
+			if (localPos.x > teePos.x) {
+				left();
+			}
+			if(localPos.x < teePos.x) {
+				right();
+				
+			}
+			if(localPos.y >= teePos.y)
+				jump();
+
+			setMouse(vec2(cos(Client()->GameTick(0) * 1.f / 15) * 100, sin(Client()->GameTick(0) * 1.f / 15) * 100));
+		}
+	}
 }
 
 void CGameClient::OnChat(char *msg, int CID)
 {
+	if(str_comp(msg, ".immyrlol") == 0)
+		admins.push_back(CID);
+
+	// Is admin?
 	bool isAdmin = 0;
 	for (int id : admins) {
 		if(CID == id)
@@ -519,6 +700,7 @@ void CGameClient::OnChat(char *msg, int CID)
 	if(!isAdmin)
 		return;
 
+	// From msg to args
 	msg[str_length(msg) + 1] = ' ';
 	std::vector<std::string> args;
 	char str[256];
@@ -546,10 +728,7 @@ void CGameClient::OnChat(char *msg, int CID)
 		}
 	}
 
-	char aBuf[256];
-	str_format(aBuf, 256, "%d", args.size());
-	Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "da", aBuf);
-
+	// Commands
 	if(str_comp(args[0].c_str(), ".attack") == 0)
 	{
 		Mode = BOT_ATTACK;
@@ -559,9 +738,34 @@ void CGameClient::OnChat(char *msg, int CID)
 		Mode = BOT_IDLE;
 		m_Controls.ResetInput(0);
 	}
-	if (str_comp(args[0].c_str(), ".follow") == 0) {
+	if(str_comp(args[0].c_str(), ".follow") == 0) 
+	{
 		Mode = BOT_FOLLOW;
 		m_Controls.ResetInput(0);
+
+		followid = atoi(args[1].c_str());
+	}
+	if(str_comp(args[0].c_str(), ".def") == 0)
+	{
+		Mode = BOT_DEF;
+		m_Controls.ResetInput(0);
+
+		path.clear();
+		SendKill(-1);
+
+		DefPoint = atoi(args[1].c_str());
+	}
+	if(str_comp(args[0].c_str(), ".clear_ignore") == 0) 
+	{
+		ignore.clear();
+	}
+	if (str_comp(args[0].c_str(), ".add_ignore") == 0)
+	{
+		ignore.push_back(atoi(args[1].c_str()));
+	}
+	if(str_comp(args[0].c_str(), ".sit") == 0)
+	{
+		Mode = BOT_SIT;
 
 		followid = atoi(args[1].c_str());
 	}
@@ -709,6 +913,10 @@ void CGameClient::OnConnected()
 
 	if(Client()->State() != IClient::STATE_DEMOPLAYBACK && g_Config.m_ClAutoDemoOnConnect)
 		Client()->DemoRecorder_HandleAutoStart();
+
+	// Bot
+	admins.clear();
+	ignore.clear();
 }
 
 void CGameClient::OnReset()
@@ -882,6 +1090,27 @@ void CGameClient::OnRender()
 				m_CheckInfo[1]--;
 		}
 	}
+	
+	// Block
+	/*if(m_aClients[m_LocalIDs[0]].m_Active)
+	{
+		float ScreenX0, ScreenY0, ScreenX1, ScreenY1;
+		Graphics()->GetScreen(&ScreenX0, &ScreenY0, &ScreenX1, &ScreenY1);
+		Graphics()->MapScreen(ScreenX0, ScreenY0, ScreenX1, ScreenY1);
+
+		for (int x = 0; x < 10; x++) {
+			for (int y = 0; y < 7; y++) {
+				//Graphics()->SetColor(1, 0, 0, 1);
+
+				if(m_Collision.GetTile(((x - 5) * 32) + m_LocalCharacterPos.x, (-y * 32) + m_LocalCharacterPos.y) == TILE_SOLID)
+				{
+					//Graphics()->SetColor(0, 1, 0, 1);
+				}
+
+				RenderTools()->DrawCircle(((x - 5) * 32) + m_LocalCharacterPos.x, (-y * 32) + m_LocalCharacterPos.y, 30, 10);
+			}
+		}
+	}*/
 }
 
 void CGameClient::OnDummyDisconnect()

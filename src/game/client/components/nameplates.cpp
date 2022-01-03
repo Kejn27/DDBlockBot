@@ -152,8 +152,9 @@ void CNamePlates::RenderNameplatePos(vec2 Position, const CNetObj_PlayerInfo *pP
 		if(g_Config.m_ClNameplatesFriendMark && m_pClient->m_aClients[ClientID].m_Friend)
 		{
 			YOffset -= FontSize;
-			char aFriendMark[] = "♥";
-			TextRender()->TextColor(ColorRGBA(1.0f, 0.0f, 0.0f));
+			char aFriendMark[] = "l";
+
+			TextRender()->TextColor(ColorRGBA(0.4f, 0.2f, 0.0f));
 			float XOffSet = TextRender()->TextWidth(0, FontSize, aFriendMark, -1, -1.0f) / 2.0f;
 			TextRender()->Text(0, Position.x - XOffSet, YOffset, FontSize, aFriendMark, -1.0f);
 		}

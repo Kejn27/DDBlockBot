@@ -647,8 +647,10 @@ public:
 	{
 		BOT_IDLE,
 		BOT_ATTACK,
-		BOT_FOLLOW,
-		BOT_DEF
+		BOT_DEFATTACK,
+		BOT_DEF,
+		BOT_SIT,
+		BOT_FOLLOW
 	};
 	int Mode = BOT_IDLE;
 
@@ -666,10 +668,12 @@ public:
 		POINTS_COUNT
 	};
 
+	int DefPoint;
+
 	std::vector<int> ignore;
 	std::vector<int> admins;
 
-	std::vector<std::vector<vec2>> paths;
+	std::vector<vec2> paths[POINTS_COUNT];
 	std::vector<vec2> path;
 
 private:
@@ -748,7 +752,6 @@ private:
 	}
 
 	int FreezeTimer = 0;
-	bool inFreeze = 0;
 
 	// Follow
 	int followid = -1;
@@ -757,6 +760,10 @@ private:
 
 	static void ConAddAdmin(IConsole::IResult *pResult, void *pUserData);
 	static void ConAddIgnore(IConsole::IResult *pResult, void *pUserData);
+
+	float lerp(float a, float b, float t) {
+		return a + (b - a) * t;
+	}
 };
 
 ColorRGBA CalculateNameColor(ColorHSLA TextColorHSL);
